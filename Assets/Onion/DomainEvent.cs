@@ -1,2 +1,5 @@
-public record DomainEvent;
+namespace Onion
+{
+    public record DomainEvent;
+}
 
