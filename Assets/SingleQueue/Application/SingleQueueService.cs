@@ -19,10 +19,7 @@ namespace SingleQueue
 
         public void Next()
         {
-            // TODO: support where !q0.IsEmpty
-            if (QueueEntity.Value.IsEmpty) { return; }
-
-            var snapshot = from q0 in QueueEntity
+            var snapshot = from q0 in QueueEntity where !q0.IsEmpty
                            from q1 in QueueService.ServeAgent(q0)
                            select q1;
             QueueEntity.Save(snapshot);

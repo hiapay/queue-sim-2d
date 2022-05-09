@@ -14,8 +14,13 @@ namespace Onion
         public IObservable<DomainEvent> EventStream => EventSource;
         private ReplaySubject<DomainEvent> EventSource { get; } = new();
 
+        public EntitySnapshot<TValue> Snapshot
+            => new(Value, new DomainEvent[] { });
+
         public void Save(EntitySnapshot<TValue> snapshot)
         {
+            if (snapshot is EmptyEntitySnapshot<TValue>) { return; }
+
             ValueSource.OnNext(snapshot.Value);
             foreach (var @event in snapshot.Events)
             {
@@ -26,16 +31,10 @@ namespace Onion
 
     public static class EntityExtensions
     {
-        public static EntitySnapshot<TTarget> SelectMany<TSource, TCollection, TTarget>(this Entity<TSource> source,
-            Func<TSource, EntitySnapshot<TCollection>> collectionSelector,
-            Func<TSource, TCollection, TTarget> targetSelector)
+        public static EntitySnapshot<TSource> Where<TSource>(this Entity<TSource> entity,
+            Func<TSource, bool> predicate)
             where TSource : class
-            where TCollection : class
-            where TTarget : class
-        {
-            var collection = collectionSelector(source.Value);
-            return new(targetSelector(source.Value, collection.Value), collection.Events);
-        }
+            => predicate(entity.Value) ? entity.Snapshot : EntitySnapshot<TSource>.Empty;
     }
 }
 
