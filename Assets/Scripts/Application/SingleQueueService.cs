@@ -1,41 +1,27 @@
-using System;
-using System.Collections.Generic;
-using System.Reactive.Subjects;
-
 public class SingleQueueService
 {
-    public IObservable<DomainEvent> EventStream => EventSource;
-    private Subject<DomainEvent> EventSource { get; } = new();
+    public Entity<Queue> QueueEntity = new();
 
-    private QueueService QueueService { get; } = new();
-    public Queue Queue { get; private set; }
-
-    public void Init()
+    public void Initialize()
     {
-        var queue = from q0 in QueueService.CreateQueue()
-                    from q1 in QueueService.QueueAgent(q0, 0)
-                    from q2 in QueueService.QueueAgent(q1, 2)
-                    from q3 in QueueService.QueueAgent(q2, 1)
-                    select q3;
-
-        Queue = queue.Value;
-        PublishEvents(queue.Events);
+        var snapshot = from q0 in QueueService.CreateQueue()
+                       from q1 in QueueService.QueueAgent(q0, 0)
+                       from q2 in QueueService.QueueAgent(q1, 1)
+                       from q3 in QueueService.QueueAgent(q2, 2)
+                       from q4 in QueueService.QueueAgent(q3, 3)
+                       select q4;
+        QueueEntity.Save(snapshot);
     }
 
     public void Next()
     {
-        var queue = QueueService.ServeAgent(Queue);
+        // TODO: support where !q0.IsEmpty
+        if (QueueEntity.Value.IsEmpty) { return; }
 
-        Queue = queue.Value;
-        PublishEvents(queue.Events);
-    }
-
-    private void PublishEvents(IEnumerable<DomainEvent> events)
-    {
-        foreach (var @event in events)
-        {
-            EventSource.OnNext(@event);
-        }
+        var snapshot = from q0 in QueueEntity
+                       from q1 in QueueService.ServeAgent(q0)
+                       select q1;
+        QueueEntity.Save(snapshot);
     }
 }
 

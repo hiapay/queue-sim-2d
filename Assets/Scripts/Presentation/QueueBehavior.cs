@@ -8,17 +8,18 @@ using UnityEngine;
 public class QueueBehavior : MonoBehaviour
 {
     public GameObject AgentPrefab;
-    private Dictionary<int, GameObject> AgentGameObjects { get; } = new();
+    private LinkedList<GameObject> AgentGameObjects { get; } = new();
 
     private SingleQueueService SingleQueueService { get; } = new();
-
-    private IDisposable subscription;
+    private IDisposable QueueValueSubscription { get; set; }
+    private IDisposable QueueEventSubscription { get; set; }
 
     public IEnumerator Start()
     {
-        subscription = SingleQueueService.EventStream.Subscribe(_ => Draw());
+        QueueValueSubscription = SingleQueueService.QueueEntity.ValueStream.Subscribe(Draw);
+        QueueEventSubscription = SingleQueueService.QueueEntity.EventStream.Subscribe(Debug.Log);
 
-        SingleQueueService.Init();
+        SingleQueueService.Initialize();
         while (true)
         {
             yield return new WaitForSeconds(1f);
@@ -28,24 +29,26 @@ public class QueueBehavior : MonoBehaviour
 
     public void OnDisable()
     {
-        subscription.Dispose();
+        QueueValueSubscription.Dispose();
+        QueueEventSubscription.Dispose();
     }
 
-    private void Draw()
+    private void Draw(Queue queue)
     {
-        var agentIds = SingleQueueService.Queue.Agents.Select(it => it.Id);
-        var removingAgentIds = AgentGameObjects.Keys.Except(agentIds).ToList();
-        var addingAgentIds = agentIds.Except(AgentGameObjects.Keys).ToList();
+        if (queue is null) { return; }
 
-        foreach (var agentId in removingAgentIds)
+        while (AgentGameObjects.Count() < queue.Agents.Count())
         {
-            Destroy(AgentGameObjects[agentId]);
-            AgentGameObjects.Remove(agentId);
+            var agentGameObject = Instantiate(AgentPrefab,
+                new Vector3(AgentGameObjects.Count(), 0, 0),
+                Quaternion.identity);
+            AgentGameObjects.AddFirst(agentGameObject);
         }
 
-        foreach (var agentId in addingAgentIds)
+        while (queue.Agents.Count() < AgentGameObjects.Count())
         {
-            AgentGameObjects[agentId] = Instantiate(AgentPrefab, new Vector3(agentId, 0, 0), Quaternion.identity);
+            Destroy(AgentGameObjects.Last());
+            AgentGameObjects.RemoveLast();
         }
     }
 }

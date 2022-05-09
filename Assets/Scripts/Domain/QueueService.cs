@@ -1,41 +1,48 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 #region models
 
-public record Queue(IEnumerable<Agent> Agents);
+public record Queue
+{
+    public IEnumerable<Agent> Agents { get; init; } = new Agent[] { };
+    public bool IsEmpty => !Agents.Any();
+}
 public record Agent(int Id);
 
 #endregion
 
 #region events
 
+public record QueueCreated : DomainEvent;
 public record AgentQueued(int AgentId) : DomainEvent;
 public record AgentServed(int AgentId) : DomainEvent;
 
 #endregion
 
-public class QueueService
+public static class QueueService
 {
-    public Result<Queue> CreateQueue() =>
-        Result.Success(new Queue(new List<Agent>()));
+    public static EntitySnapshot<Queue> CreateQueue()
+        => new Queue()
+        .ToEntitySnapshot(new QueueCreated());
 
-    public Result<Queue> QueueAgent(Queue queue, int agentId) =>
-        Result.Success(queue with
+    public static EntitySnapshot<Queue> QueueAgent(this Queue queue, int agentId)
+        => (queue with
         {
-            Agents = queue.Agents.Append(new Agent(agentId))
+            Agents = queue.Agents.Append(new Agent(agentId)).ToArray()
         })
-        .WithEvent(new AgentQueued(agentId));
+        .ToEntitySnapshot(new AgentQueued(agentId));
 
-    public Result<Queue> ServeAgent(Queue queue) =>
-        queue.Agents.FirstOrDefault() switch
+    public static EntitySnapshot<Queue> ServeAgent(this Queue queue)
+        => queue.Agents.FirstOrDefault() switch
         {
-            null => Result.Success(queue),
-            Agent agent => Result.Success(queue with
-                {
-                    Agents = queue.Agents.Except(new[] { agent })
-                })
-                .WithEvent(new AgentServed(agent.Id)),
+            null => throw new InvalidOperationException("Cannot serve agent; queue is empty"),
+            Agent agent => (queue with
+            {
+                Agents = queue.Agents.Except(new[] { agent }).ToArray(),
+            })
+            .ToEntitySnapshot(new AgentServed(agent.Id)),
         };
 }
 
